@@ -29,6 +29,7 @@ from distutils.version import LooseVersion
 
 devnull = open(os.devnull, 'w')
 extra_repos = 2
+dest_repo = []
 free_space_threshold = 1024 * 1024
 
 ####################
@@ -64,28 +65,24 @@ pulls_per_test = args.pulls_per_test
 # prep output_file
 output_file.write("pulls output\n")
 
-# prep dest repo
-repo_name = os.path.basename(os.path.normpath(src_repo))
-dest_repo = os.path.abspath("{}/{}".format(dest, repo_name))
-dest_mkdir_cmd = "mkdir -p {}".format(dest_repo)
-git_init_cmd = "git init"
-print("Initializing destination repository")
-subprocess.check_call(shlex.split(dest_mkdir_cmd))
-subprocess.check_call(shlex.split(git_init_cmd), cwd = dest_repo, stdout = devnull, stderr = devnull)
+# prep dest repos
+for i in range(0, extra_repos):
+    repo_name = os.path.basename(os.path.normpath("{}{}".format(src_repo, i))) 
+    dest_repo.append( os.path.abspath("{}/{}".format(dest, repo_name)) )
+    dest_mkdir_cmd = "mkdir -p {}".format(dest_repo[i])
+    git_init_cmd = "git init"
+    print("Initializing destination repository {}".format(i))
+    subprocess.check_call(shlex.split(dest_mkdir_cmd))
+    subprocess.check_call(shlex.split(git_init_cmd), cwd = dest_repo[i], stdout = devnull, stderr = devnull)
 
-# setup the extra repos
-for i in range(1, extra_repos):
-    mk_repo_cmd = "git clone {} {}".format(src_repo, i)
-    subprocess.check_call(shlex.split(mk_repo_cmd), cwd = dest, stdout = devnull, stderr = devnull);
-
-# configure git
-git_sha_in_want_cmd = "git config uploadpack.allowReachableSHA1InWant True"
-git_gc_off_cmd = "git config gc.auto 0"
-git_gc_autodetach_cmd = "git config gc.autodetach False"
-print("Configuring git")
-subprocess.check_call(shlex.split(git_sha_in_want_cmd), cwd = src_repo)
-subprocess.check_call(shlex.split(git_gc_autodetach_cmd), cwd = dest_repo)
-subprocess.check_call(shlex.split(git_gc_off_cmd), cwd = dest_repo)
+    # configure git
+    git_sha_in_want_cmd = "git config uploadpack.allowReachableSHA1InWant True"
+    git_gc_off_cmd = "git config gc.auto 0"
+    git_gc_autodetach_cmd = "git config gc.autodetach False"
+    print("Configuring git in repo {}".format(i))
+    subprocess.check_call(shlex.split(git_sha_in_want_cmd), cwd = src_repo)
+    subprocess.check_call(shlex.split(git_gc_autodetach_cmd), cwd = dest_repo[i])
+    subprocess.check_call(shlex.split(git_gc_off_cmd), cwd = dest_repo[i])
 
 # generate list of commits
 git_rev_list_cmd = "git rev-list --reverse HEAD"
@@ -109,20 +106,21 @@ for pull in range(0, total_pulls + 1):
     free_space = statvfs.f_frsize * statvfs.f_bfree
     if free_space < free_space_threshold:
 	if extra_repos > 0:
-            rm_repo_cmd = "rm -rf {}/{}".format(dest, extra_repos)
+            rm_repo_cmd = "rm -rf {}".format(dest_repo[extra_repos])
             subprocess.check_call(shlex.split(rm_repo_cmd))
             extra_repos -= 1
 
     # print progress bar
     overall_progress = 20 * pull / total_pulls
     current_progress = 20 * (pull % pulls_per_test) / pulls_per_test 
-    progress = "\r Overall: |{0}{1}| {2: >3}%   Next test: |{3}{4}| {5: >3}%".format('#' * overall_progress, '-' * (20 - overall_progress), 100 * pull / total_pulls, '#' * current_progress, '-' * (20 - current_progress), 100 * (pull % pulls_per_test) / pulls_per_test)
+    progress = "\r Free Space: {} KB   Overall: |{0}{1}| {2: >3}%   Next test: |{3}{4}| {5: >3}%".format(free_space / 1024, '#' * overall_progress, '-' * (20 - overall_progress), 100 * pull / total_pulls, '#' * current_progress, '-' * (20 - current_progress), 100 * (pull % pulls_per_test) / pulls_per_test)
     sys.stdout.write(progress)
     sys.stdout.flush()
 
     # perform the next git pull
     git_pull_cmd = "git pull --no-edit -q -s recursive -X theirs {} {}".format(src_repo, rev_list[pull].strip())
-    subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo, stderr = devnull, stdout = devnull)
+    for i in range(0, extra_repos):
+        subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo[i], stderr = devnull, stdout = devnull)
 
     # run the test_script
     if pull % pulls_per_test == 0:
