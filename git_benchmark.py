@@ -28,9 +28,9 @@ from distutils.version import LooseVersion
 # globals
 
 devnull = open(os.devnull, 'w')
-extra_repos = 2
+extra_repos = 9
 dest_repo = []
-free_space_threshold = 1024 * 1024
+free_space_threshold = 500 * 1024 * 1024
 
 ####################
 # initialization
@@ -66,7 +66,7 @@ pulls_per_test = args.pulls_per_test
 output_file.write("pulls output\n")
 
 # prep dest repos
-for i in range(0, extra_repos):
+for i in range(0, extra_repos + 1):
     repo_name = os.path.basename(os.path.normpath("{}{}".format(src_repo, i))) 
     dest_repo.append( os.path.abspath("{}/{}".format(dest, repo_name)) )
     dest_mkdir_cmd = "mkdir -p {}".format(dest_repo[i])
@@ -113,13 +113,13 @@ for pull in range(0, total_pulls + 1):
     # print progress bar
     overall_progress = 20 * pull / total_pulls
     current_progress = 20 * (pull % pulls_per_test) / pulls_per_test 
-    progress = "\r Free Space: {} KB   Overall: |{0}{1}| {2: >3}%   Next test: |{3}{4}| {5: >3}%".format(free_space / 1024, '#' * overall_progress, '-' * (20 - overall_progress), 100 * pull / total_pulls, '#' * current_progress, '-' * (20 - current_progress), 100 * (pull % pulls_per_test) / pulls_per_test)
+    progress = "\r Overall: |{0}{1}| {2: >3}%   Next test: |{3}{4}| {5: >3}%   Free Space: {6} KB".format('#' * overall_progress, '-' * (20 - overall_progress), 100 * pull / total_pulls, '#' * current_progress, '-' * (20 - current_progress), 100 * (pull % pulls_per_test) / pulls_per_test, free_space / 1024)
     sys.stdout.write(progress)
     sys.stdout.flush()
 
     # perform the next git pull
     git_pull_cmd = "git pull --no-edit -q -s recursive -X theirs {} {}".format(src_repo, rev_list[pull].strip())
-    for i in range(0, extra_repos):
+    for i in range(0, extra_repos + 1):
         subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo[i], stderr = devnull, stdout = devnull)
 
     # run the test_script
