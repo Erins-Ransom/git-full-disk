@@ -120,7 +120,14 @@ for pull in range(0, total_pulls + 1):
     # perform the next git pull
     git_pull_cmd = "git pull --no-edit -q -s recursive -X theirs {} {}".format(src_repo, rev_list[pull].strip())
     for i in range(0, extra_repos + 1):
-        subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo[i], stderr = devnull, stdout = devnull)
+	try:
+            subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo[i], stderr = devnull, stdout = devnull)
+        except subprocess.CalledProcessError:
+            if extra_repos > 0:
+                rm_repo_cmd = "rm -rf {}".format(dest_repo[extra_repos])
+                subprocess.check_call(shlex.split(rm_repo_cmd))
+                extra_repos -= 1
+                subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo[i], stderr = devnull, stdout = devnull)
 
     # run the test_script
     if pull % pulls_per_test == 0:
