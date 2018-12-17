@@ -20,7 +20,7 @@ AGED="$(TIMEFORMAT='%3R'; time (grep -r "t26EdaovJD" $AGED_PATH) 2>&1)"
 SIZE="$(du -s $AGED_PATH | awk '{print $1}')"
 
 # create a new ext4 filesystem, mount it, time a recursive grep and dismount it
-mkfs.ext4 -f $UNAGED_BLKDEV &>> log.txt
+mkfs.ext4 -F $UNAGED_BLKDEV &>> log.txt
 mount $UNAGED_BLKDEV $UNAGED_PATH &>> log.txt
 cp -a $AGED_PATH/* $UNAGED_PATH
 umount $UNAGED_PATH &>> log.txt
