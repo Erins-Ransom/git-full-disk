@@ -30,6 +30,7 @@ from distutils.version import LooseVersion
 devnull = open(os.devnull, 'w')
 extra_repos = 9
 dest_repo = []
+dest_repo2 = []
 free_space_threshold = 500 * 1024 * 1024
 
 ####################
@@ -48,6 +49,7 @@ else:
 parser = argparse.ArgumentParser()
 parser.add_argument("src_repo", help="source repository")
 parser.add_argument("dest", help="destination location to be aged")
+parser.add_argument("dest2", help="destination location to also be aged")
 parser.add_argument("output_file", help="file to which results are written")
 parser.add_argument("total_pulls", help="total number of pulls in the test", type=int)
 parser.add_argument("pulls_per_test", help="run the test_script every this many pulls", type=int)
@@ -57,6 +59,7 @@ args = parser.parse_args()
 
 src_repo = os.path.abspath(args.src_repo)
 dest = args.dest
+dest2 = args.dest2
 test_script = "{} {}".format(args.test_script, " ".join(args.script_params))
 output_file = open(args.output_file, 'w')
 total_pulls = args.total_pulls
@@ -69,20 +72,28 @@ output_file.write("pulls output\n")
 for i in range(0, extra_repos + 1):
     repo_name = os.path.basename(os.path.normpath("{}{}".format(src_repo, i))) 
     dest_repo.append( os.path.abspath("{}/{}".format(dest, repo_name)) )
+    dest_repo2.append( os.path.abspath("{}/{}".format(dest2, repo_name)) )
     dest_mkdir_cmd = "mkdir -p {}".format(dest_repo[i])
+    dest2_mkdir_cmd = "mkdir -p {}".format(dest_repo2[i])
     git_init_cmd = "git init"
-    print("Initializing destination repository {}".format(i))
+    print("Initializing destination repository {}".format(dest_repo[i]))
+    print("Initializing destination repository {}".format(dest_repo2[i]))
     subprocess.check_call(shlex.split(dest_mkdir_cmd))
+    subprocess.check_call(shlex.split(dest2_mkdir_cmd))
     subprocess.check_call(shlex.split(git_init_cmd), cwd = dest_repo[i], stdout = devnull, stderr = devnull)
+    subprocess.check_call(shlex.split(git_init_cmd), cwd = dest_repo2[i], stdout = devnull, stderr = devnull)
 
     # configure git
     git_sha_in_want_cmd = "git config uploadpack.allowReachableSHA1InWant True"
     git_gc_off_cmd = "git config gc.auto 0"
     git_gc_autodetach_cmd = "git config gc.autodetach False"
-    print("Configuring git in repo {}".format(i))
+    print("Configuring git in repo {}".format(dest_repo[i]))
+    print("Configuring git in repo {}".format(dest_repo2[i]))
     subprocess.check_call(shlex.split(git_sha_in_want_cmd), cwd = src_repo)
     subprocess.check_call(shlex.split(git_gc_autodetach_cmd), cwd = dest_repo[i])
+    subprocess.check_call(shlex.split(git_gc_autodetach_cmd), cwd = dest_repo2[i])
     subprocess.check_call(shlex.split(git_gc_off_cmd), cwd = dest_repo[i])
+    subprocess.check_call(shlex.split(git_gc_off_cmd), cwd = dest_repo2[i])
 
 # generate list of commits
 git_rev_list_cmd = "git rev-list --reverse HEAD"
@@ -101,14 +112,19 @@ print('-------------------------------------------------------------------------
 # main loop
 
 for pull in range(0, total_pulls + 1):
-    # check free space
+    # check free spacei
     statvfs = os.statvfs(dest) 
     free_space = statvfs.f_frsize * statvfs.f_bfree
     if free_space < free_space_threshold:
 	if extra_repos > 0:
             rm_repo_cmd = "rm -rf {}".format(dest_repo[extra_repos])
             subprocess.check_call(shlex.split(rm_repo_cmd))
+            del dest_repo[extra_repos]
+            rm_repo_cmd = "rm -rf {}".format(dest_repo2[extra_repos])
+            subprocess.check_call(shlex.split(rm_repo_cmd))
+            del dest_repo2[extra_repos]
             extra_repos -= 1
+            print('\nRemoved repo')
 
     # print progress bar
     overall_progress = 20 * pull / total_pulls
@@ -121,15 +137,24 @@ for pull in range(0, total_pulls + 1):
     i = 0
     git_pull_cmd = "git pull --no-edit -q -s recursive -X theirs {} {}".format(src_repo, rev_list[pull].strip())
     while i <= extra_repos:
-	try:
-            subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo[i], stderr = devnull, stdout = devnull)
-        except subprocess.CalledProcessError:
-            if extra_repos > 0:
-                rm_repo_cmd = "rm -rf {}".format(dest_repo[extra_repos])
-                subprocess.check_call(shlex.split(rm_repo_cmd))
-                extra_repos -= 1
-		if i <= extra_repos:
+        subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo2[i], stderr = devnull, stdout = devnull)
+	fail = 1
+	while fail == 1:
+	    try:
+                if i <= extra_repos:
                     subprocess.check_call(shlex.split(git_pull_cmd), cwd = dest_repo[i], stderr = devnull, stdout = devnull)
+                fail = 0
+            except subprocess.CalledProcessError:
+                if extra_repos > 0:
+                    rm_repo_cmd = "rm -rf {}".format(dest_repo[i])
+                    subprocess.check_call(shlex.split(rm_repo_cmd))
+                    del dest_repo[i]
+                    rm_repo_cmd = "rm -rf {}".format(dest_repo2[i])
+                    subprocess.check_call(shlex.split(rm_repo_cmd))
+                    del dest_repo2[i]
+                    extra_repos -= 1
+                    print('\nRemoved repo')
+
 	i += 1
 
     # run the test_script
