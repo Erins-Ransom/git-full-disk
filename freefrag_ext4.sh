@@ -19,11 +19,11 @@ CLEAN_BLKDEV=$6
 # remount aged and time a recursive grep
 umount $FULL_PATH &>> log.txt
 mount -t ext4 $FULL_BLKDEV $FULL_PATH &>> log.txt
-FULL="e2freefrag $FULL_BLDKEV"
+FULL=$(e2freefrag $FULL_BLDKEV)
 
 umount $UNFULL_PATH &>> log.txt
 mount -t ext4 $UNFULL_BLKDEV $UNFULL_PATH
-UNFULL="e2freefrag $UNFULL_BLDEV"
+UNFULL=$(e2freefrag $UNFULL_BLDEV)
 
 # create a new ext4 filesystem, mount it, time a recursive grep and dismount it
 mkfs.ext4 -F $CLEAN_BLKDEV &>> log.txt
@@ -31,7 +31,7 @@ mount -t ext4 $CLEAN_BLKDEV $CLEAN_PATH &>> log.txt
 cp -a $FULL_PATH/* $CLEAN_PATH/.
 umount $CLEAN_PATH &>> log.txt
 mount -t ext4 $CLEAN_BLKDEV $CLEAN_PATH
-CLEAN="e2freefrag $CLEAN_BLKDEV"
+CLEAN=$(e2freefrag $CLEAN_BLKDEV)
 umount $CLEAN_PATH &>> log.txt
 
 # return the frag data
