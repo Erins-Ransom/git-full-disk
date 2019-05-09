@@ -12,8 +12,8 @@ FULL_PATH=$1
 FULL_BLKDEV=$2
 UNFULL_PATH=$3
 UNFULL_BLKDEV=$4
-CLEAN_PATH="/mnt/clean"
-CLEAN_BLKDEV="/dev/sdb3"
+CLEAN_PATH=$5
+CLEAN_BLKDEV=$6
 
 # remount aged and time a recursive grep
 umount $FULL_PATH &>> log.txt
